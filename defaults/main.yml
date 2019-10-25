@@ -1,0 +1,81 @@
+---
+haproxy_socket: /var/lib/haproxy/stats
+haproxy_chroot: /var/lib/haproxy
+haproxy_user: haproxy
+haproxy_group: haproxy
+haproxy_global_vars: []
+
+#---------------------------------------------------------------------
+# HTTP Services
+#---------------------------------------------------------------------
+
+# haproxy_http:
+#   acls:
+#     - name: blacklist
+#       type: src
+#       sources:
+#         - '-f /etc/haproxy/block_ips.txt'
+#   blocks:
+#     - 'blacklist'
+#   backends:
+#     - code: backend1
+#       balance_method: 'roundrobin'
+#       domains:
+#         - your.awesome.website
+#       servers:
+#         - code: server1
+#           address: your.awesome.server1:80
+#         - code: server2
+#           address: your.awesome.server2:8080
+#   default_backend:
+#     code: default
+#     address: www.google.com:80
+
+
+#---------------------------------------------------------------------
+# HTTPS Services
+#---------------------------------------------------------------------
+
+# haproxy_https:
+#   certs_list: '/etc/ssl/certs/certs.txt'
+#   acls:
+#     - name: blacklist
+#       type: src
+#       sources:
+#         - '-f /etc/haproxy/block_ips.txt'
+#   blocks:
+#     - 'blacklist'
+#   backends:
+#     - code: backend1
+#       balance_method: 'roundrobin'
+#       domains:
+#         - your.awesome.website
+#       servers:
+#         - code: server1
+#           address: your.awesome.server1:80
+#         - code: server2
+#           address: your.awesome.server2:8080
+#   default_backend:
+#     code: default
+#     address: www.google.com:443
+
+#---------------------------------------------------------------------
+# TCP Services
+#---------------------------------------------------------------------
+
+# haproxy_tcp_frontends:
+#   - name: 'database_frontend'
+#     bind_address: '*'
+#     port: 3306
+#     default_backend: 'database_backend'
+
+# haproxy_tcp_backends:
+#   - name: 'database_backend'
+#     balance_method: 'roundrobin'
+#     servers:
+#       - name: 'mysql1'
+#         address: 'your.database.server1:3306'
+#       - name: 'mysql2'
+#         address: 'your.database.server2:3306'
+#     extras:
+#       - config: 'custom config'

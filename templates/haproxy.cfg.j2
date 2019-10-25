@@ -1,0 +1,165 @@
+global
+  log /dev/log  local0
+  log /dev/log  local1 notice
+{% if haproxy_socket != '' %}
+  stats socket {{ haproxy_socket }} level admin
+{% endif %}
+{% if haproxy_chroot != '' %}
+  chroot {{ haproxy_chroot }}
+{% endif %}
+  user {{ haproxy_user }}
+  group {{ haproxy_group }}
+  daemon
+{% for global_var in haproxy_global_vars %}
+  {{ global_var }}
+{% endfor %}
+
+defaults
+  log global
+  mode  http
+  option  httplog
+  option  dontlognull
+{% if haproxy_version == '1.4' %}
+        contimeout 5000
+        clitimeout 50000
+        srvtimeout 50000
+{% else %}
+        timeout connect 5000
+        timeout client 50000
+        timeout server 50000
+{% endif %}
+{% if ansible_os_family == 'Debian' %}
+  errorfile 400 /etc/haproxy/errors/400.http
+  errorfile 403 /etc/haproxy/errors/403.http
+  errorfile 408 /etc/haproxy/errors/408.http
+  errorfile 500 /etc/haproxy/errors/500.http
+  errorfile 502 /etc/haproxy/errors/502.http
+  errorfile 503 /etc/haproxy/errors/503.http
+  errorfile 504 /etc/haproxy/errors/504.http
+{% endif %}
+
+#---------------------------------------------------------------------
+# HTTP Services
+#---------------------------------------------------------------------
+
+{% if haproxy_http is defined %}
+
+frontend http-in
+  bind *:80
+  mode http
+  option http-server-close
+  option forwardfor
+
+{% for acl in haproxy_http.acls %}
+{% for src in acl.sources %}
+  acl {{ acl.name }} {{ acl.type }} {{ src }}
+{% endfor %}
+{% endfor %}
+
+{% for blk in haproxy_http.blocks %}
+  block if {{ blk }}
+{% endfor %}
+
+{% for backend in haproxy_http.backends %}
+{% for domain in backend.domains %}
+  use_backend {{ backend.code }} if hdr(host) {{ domain }}
+{% endfor %}
+{% endfor %}
+
+  default_backend {{ haproxy_http.default_backend.code }}
+
+{% for backend in haproxy_http.backends %}
+
+backend {{ backend.code }}
+  option forwardfor
+  option httpchk
+  balance {{ backend.balance_method }}
+  cookie SERVERID insert indirect
+{% for server in backend.servers %}
+  server {{ server.code }} {{ server.address }} cookie {{ server.code }} check
+{% endfor %}
+{% endfor %}
+
+backend {{ haproxy_http.default_backend.code }}
+  server {{ haproxy_http.default_backend.address }}
+
+{% endif %}
+
+#---------------------------------------------------------------------
+# HTTPS Services
+#---------------------------------------------------------------------
+
+{% if haproxy_https is defined %}
+
+frontend https-in
+  bind *:443 ssl crt-list {{ haproxy_https.certs_list }}
+  mode http
+  option http-server-close
+  option forwardfor
+
+{% for acl in haproxy_https.acls %}
+{% for src in acl.sources %}
+  acl {{ acl.name }} {{ acl.type }} {{ src }}
+{% endfor %}
+{% endfor %}
+
+{% for blk in haproxy_https.blocks %}
+  block if {{ blk }}
+{% endfor %}
+
+{% for backend in haproxy_https.backends %}
+{% for domain in backend.domains %}
+  use_backend {{ backend.code }} if { ssl_fc_sni {{ domain }} }
+{% endfor %}
+{% endfor %}
+
+  default_backend {{ haproxy_https.default_backend.code }}
+
+{% for backend in haproxy_https.backends %}
+
+backend {{ backend.code }}
+  redirect scheme https if !{ ssl_fc }
+  option httpclose
+  option forwardfor
+  http-request set-header X-Forwarded-Port %[dst_port]
+  http-request add-header X-Forwarded-Proto https if { ssl_fc }
+  balance {{ backend.balance_method }}
+{% for server in backend.servers %}
+  server {{ server.code }} {{ server.address }} check
+{% endfor %}
+{% endfor %}
+
+backend {{ haproxy_https.default_backend.code }}
+  server {{ haproxy_https.default_backend.address }}
+
+{% endif %}
+
+#---------------------------------------------------------------------
+# TCP Services
+#---------------------------------------------------------------------
+
+{% if haproxy_tcp_frontends is defined %}
+
+{% for frontend in haproxy_tcp_frontends %}
+frontend {{ frontend.name }}
+  mode tcp
+  option tcplog
+  bind {{ frontend.bind_address }}:{{ frontend.port }}
+  default_backend {{ frontend.default_backend }}
+{% endfor %}
+
+{% for backend in haproxy_tcp_backends %}
+backend {{ backend.name }}
+  mode tcp
+  balance {{ backend.balance_method }}
+{% for server in backend.servers %}
+  server {{ server.name }} {{ server.address }}
+{% endfor %}
+{% if backend.extras is defined %}
+{% for extra in backend.extras %}
+  {{ extra.config }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+{% endif %}
